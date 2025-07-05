@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太原市民艺术夜校 - “师带徒”新人培养计划</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Warm Neutrals (Stone, Slate, Amber) -->
+    <!-- Application Structure Plan: 升级为包含持久化存储的仪表板。结构扩展为六大板块：1.概览, 2.详情, 3.导师评估(数据输入), 4.徒弟反馈(数据输入), 5.在线统计(数据显示), 6.激励机制。核心是引入Firestore，将评估和反馈表单从计算工具转变为数据收集入口，在线统计板块则成为实时的数据可视化中心，实现了从静态到动态、从个人使用到团队协作的转变。 -->
+    <!-- Visualization & Content Choices: 概览->卡片; 详情->手风琴; 评估->交互表单+JS->Firestore写入; 反馈->星级+JS->Firestore写入; 统计->指标卡+条形图(岗位对比)+雷达图(导师效果)+JS->Firestore读取与聚合; 激励->静态条形图。此选择确保了数据流的完整闭环：收集->存储->分析->展示。确认未使用SVG及Mermaid JS。 -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f8f7f4; color: #334155; }
+        html { scroll-behavior: smooth; }
+        .nav-link { transition: color 0.3s, border-bottom-color 0.3s; }
+        .nav-link:hover, .nav-link.active { color: #d97706; border-bottom-color: #d97706; }
+        .tab-btn { transition: all 0.3s; }
+        .tab-btn.active { background-color: #d97706; color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .score-item { cursor: pointer; transition: all 0.2s ease-in-out; }
+        .score-item:hover { transform: scale(1.1); background-color: #f59e0b; color: white; }
+        .score-item.selected { background-color: #d97706; color: white; font-weight: bold; transform: scale(1.1); }
+        .feedback-star { cursor: pointer; color: #d1d5db; transition: color 0.2s, transform 0.2s; }
+        .feedback-star:hover { transform: scale(1.2); }
+        .feedback-stars:hover .feedback-star, .feedback-star.selected { color: #f59e0b; }
+        .feedback-stars .feedback-star:hover ~ .feedback-star { color: #d1d5db; }
+        .chart-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #9ca3af; }
+        @media print {
+            body * { visibility: hidden; }
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+            header, #actions-bar, #apprentice-feedback, #statistics, #rewards, footer { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-slate-700">
+
+    <header class="bg-white/80 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="text-xl font-bold text-amber-700">师带徒计划</div>
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#overview" class="nav-link text-slate-600 border-b-2 border-transparent pb-1">计划概览</a>
+                <a href="#details" class="nav-link text-slate-600 border-b-2 border-transparent pb-1">计划详情</a>
+                <a href="#evaluation" class="nav-link text-slate-600 border-b-2 border-transparent pb-1">导师评估</a>
+                <a href="#apprentice-feedback" class="nav-link text-slate-600 border-b-2 border-transparent pb-1">徒弟反馈</a>
+                <a href="#statistics" class="nav-link text-slate-600 border-b-2 border-transparent pb-1">在线统计</a>
+                <a href="#rewards" class="nav-link text-slate-600 border-b-2 border-transparent pb-1">激励机制</a>
+            </div>
+            <div class="md:hidden">
+                <select id="mobile-nav" class="bg-white border border-stone-300 rounded-md px-3 py-2 text-slate-700">
+                    <option value="#overview">计划概览</option>
+                    <option value="#details">计划详情</option>
+                    <option value="#evaluation">导师评估</option>
+                    <option value="#apprentice-feedback">徒弟反馈</option>
+                    <option value="#statistics">在线统计</option>
+                    <option value="#rewards">激励机制</option>
+                </select>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+
+        <!-- Section 1: Overview -->
+        <section id="overview" class="mb-20 scroll-mt-20">
+            <h1 class="text-4xl font-bold text-center mb-4 text-amber-800">关于在全校范围内开展“师带徒”新人培养计划的通知</h1>
+            <p class="text-center text-slate-500 max-w-3xl mx-auto mb-12">为促进新员工快速成长，帮助他们尽快熟悉业务、融入集体，同时充分发挥资深员工的专业优势与引领作用，搭建教学相长、互促共进的平台，特启动本计划。</p>
+            <div class="grid md:grid-cols-3 gap-8 text-center">
+                <div class="bg-white p-8 rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300"><div class="text-5xl mb-4 text-amber-600">🎯</div><h3 class="text-2xl font-bold mb-2">计划宗旨</h3><p class="text-slate-500">通过“一对一”或“二对一”的传、帮、带模式，系统性引导新员工掌握技能、熟悉流程、传承文化，打造高素质专业人才队伍。</p></div>
+                <div class="bg-white p-8 rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300"><div class="text-5xl mb-4 text-amber-600">👥</div><h3 class="text-2xl font-bold mb-2">参与对象</h3><p class="text-slate-500"><strong>导师：</strong>业务精湛、责任心强的资深员工。<br><strong>徒弟：</strong>近期入职我校的全体新员工。</p></div>
+                <div class="bg-white p-8 rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300"><div class="text-5xl mb-4 text-amber-600">🏆</div><h3 class="text-2xl font-bold mb-2">核心激励</h3><p class="text-slate-500">设立“实习特种兵”、“金牌导师”及“园丁奖”等荣誉和现金奖励，全面激励师徒共同进步。</p></div>
+            </div>
+        </section>
+
+        <!-- Section 2: Details -->
+        <section id="details" class="mb-20 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center mb-10">计划实施细则</h2>
+            <div class="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+                <div id="accordion-mentor"><h3 class="text-2xl font-semibold mb-4 text-amber-700">导师职责</h3><div class="space-y-4"><div class="bg-white rounded-lg shadow-sm"><button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold">思想引导<span class="transform transition-transform duration-300">▼</span></button><div class="accordion-content max-h-0 overflow-hidden transition-max-height duration-500 ease-in-out px-5"><p class="pb-5 text-slate-600">关心新员工的思想动态，引导其树立正确的职业观与价值观，传承我校“爱民、敬民、惠民、利民”的办学理念。</p></div></div><div class="bg-white rounded-lg shadow-sm"><button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold">业务指导<span class="transform transition-transform duration-300">▼</span></button><div class="accordion-content max-h-0 overflow-hidden transition-max-height duration-500 ease-in-out px-5"><p class="pb-5 text-slate-600">制定个性化的带教计划，明确学习目标与任务，定期讲授业务知识、操作技能及工作流程。</p></div></div><div class="bg-white rounded-lg shadow-sm"><button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold">过程考评<span class="transform transition-transform duration-300">▼</span></button><div class="accordion-content max-h-0 overflow-hidden transition-max-height duration-500 ease-in-out px-5"><p class="pb-5 text-slate-600">每月15日及30日对新员工的成长进度、任务完成质量及综合表现进行一次客观、公正的考评与打分，并及时给予反馈与指导。</p></div></div></div></div>
+                <div id="accordion-apprentice"><h3 class="text-2xl font-semibold mb-4 text-amber-700">徒弟职责</h3><div class="space-y-4"><div class="bg-white rounded-lg shadow-sm"><button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold">虚心学习<span class="transform transition-transform duration-300">▼</span></button><div class="accordion-content max-h-0 overflow-hidden transition-max-height duration-500 ease-in-out px-5"><p class="pb-5 text-slate-600">尊重导师，主动请教，勤于思考，认真完成导师安排的各项学习任务与工作。</p></div></div><div class="bg-white rounded-lg shadow-sm"><button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold">定期反馈<span class="transform transition-transform duration-300">▼</span></button><div class="accordion-content max-h-0 overflow-hidden transition-max-height duration-500 ease-in-out px-5"><p class="pb-5 text-slate-600">每月15日及30日对导师的指导方式、帮扶效果及带教投入度进行一次匿名的书面测评，以促进教学方法的优化。</p></div></div><div class="bg-white rounded-lg shadow-sm"><button class="accordion-header w-full flex justify-between items-center p-5 text-left font-semibold">总结提升<span class="transform transition-transform duration-300">▼</span></button><div class="accordion-content max-h-0 overflow-hidden transition-max-height duration-500 ease-in-out px-5"><p class="pb-5 text-slate-600">定期复盘个人成长，总结经验与不足，不断提升自身专业能力与综合素养。</p></div></div></div></div>
+            </div>
+        </section>
+
+        <!-- Section 3: Evaluation -->
+        <section id="evaluation" class="mb-20 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center mb-2">导师在线评估</h2>
+            <p class="text-center text-slate-500 max-w-3xl mx-auto mb-10">请导师选择徒弟对应的岗位，填写信息并在线打分。点击“提交评估”后数据将被记录用于统计。</p>
+            <div class="flex justify-center mb-8 space-x-2 md:space-x-4"><button class="tab-btn active px-4 py-2 md:px-6 md:py-3 rounded-lg font-semibold bg-white text-slate-600" data-tab="planning">企划岗</button><button class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-lg font-semibold bg-white text-slate-600" data-tab="academic">教务岗</button><button class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-lg font-semibold bg-white text-slate-600" data-tab="streaming">直播岗</button></div>
+            <div id="printable-area" class="bg-white p-6 sm:p-8 rounded-xl shadow-lg"><div id="evaluation-forms"></div></div>
+            <div id="actions-bar" class="mt-8 flex flex-wrap justify-center gap-4"><button id="submit-eval-btn" class="px-8 py-3 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors">提交评估</button><button id="print-btn" class="px-8 py-3 bg-slate-500 text-white font-bold rounded-lg hover:bg-slate-600 transition-colors">打印表单</button></div>
+        </section>
+        
+        <!-- Section 4: Apprentice Feedback -->
+        <section id="apprentice-feedback" class="mb-20 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center mb-2">徒弟匿名反馈</h2>
+            <p class="text-center text-slate-500 max-w-3xl mx-auto mb-10">为帮助导师改进，请徒弟对本轮带教进行匿名评价。您的反馈至关重要，并将严格保密存入后台。</p>
+            <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg"><div id="feedback-form-container"><div class="space-y-6"><div><label class="font-semibold block mb-2">1. 导师的指导方式清晰易懂吗？</label><div class="feedback-stars flex space-x-2 text-3xl" data-rating-id="method"><span class="feedback-star" data-value="1">★</span><span class="feedback-star" data-value="2">★</span><span class="feedback-star" data-value="3">★</span><span class="feedback-star" data-value="4">★</span><span class="feedback-star" data-value="5">★</span></div></div><div><label class="font-semibold block mb-2">2. 导师提供的帮助和支持有效吗？</label><div class="feedback-stars flex space-x-2 text-3xl" data-rating-id="effect"><span class="feedback-star" data-value="1">★</span><span class="feedback-star" data-value="2">★</span><span class="feedback-star" data-value="3">★</span><span class="feedback-star" data-value="4">★</span><span class="feedback-star" data-value="5">★</span></div></div><div><label class="font-semibold block mb-2">3. 导师在带教过程中的投入度如何？</label><div class="feedback-stars flex space-x-2 text-3xl" data-rating-id="engagement"><span class="feedback-star" data-value="1">★</span><span class="feedback-star" data-value="2">★</span><span class="feedback-star" data-value="3">★</span><span class="feedback-star" data-value="4">★</span><span class="feedback-star" data-value="5">★</span></div></div><div><label class="font-semibold block mb-2">4. 其他具体建议或感谢的话：</label><textarea id="feedback-comment" class="w-full p-2 border border-stone-300 rounded-md h-28" placeholder="可以说说哪些方面做得特别好，或者哪些地方可以改进..."></textarea></div></div><div class="mt-8 text-center"><button id="submit-feedback-btn" class="px-10 py-3 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors disabled:bg-stone-300">提交反馈</button></div></div><div id="feedback-success-msg" class="hidden text-center py-10"><div class="text-6xl mb-4">✅</div><h3 class="text-2xl font-bold text-green-600">感谢您的反馈！</h3><p class="text-slate-500 mt-2">您的宝贵意见已成功提交。</p></div></div>
+        </section>
+        
+        <!-- Section 5: Statistics -->
+        <section id="statistics" class="mb-20 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center mb-2">在线实时统计</h2>
+            <p class="text-center text-slate-500 max-w-3xl mx-auto mb-10">所有已提交的评估与反馈数据将在这里实时汇总与分析。</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center"><h3 class="text-lg font-semibold text-slate-500">评估总数</h3><p id="eval-total-count" class="text-5xl font-bold text-amber-600">0</p></div>
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center"><h3 class="text-lg font-semibold text-slate-500">反馈总数</h3><p id="feedback-total-count" class="text-5xl font-bold text-amber-600">0</p></div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-xl font-bold text-center mb-4">各岗位平均分</h3><div class="chart-container relative h-80 w-full max-w-2xl mx-auto"><canvas id="avgScoreByPosChart"></canvas><div id="avgScoreByPosChart-placeholder" class="chart-placeholder">暂无数据</div></div></div>
+                <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-xl font-bold text-center mb-4">导师带教效果分析</h3><div class="chart-container relative h-80 w-full max-w-md mx-auto"><canvas id="feedbackRadarChart"></canvas><div id="feedbackRadarChart-placeholder" class="chart-placeholder">暂无数据</div></div></div>
+            </div>
+        </section>
+
+        <!-- Section 6: Rewards -->
+        <section id="rewards" class="mb-12 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center mb-2">考评与激励机制</h2>
+            <p class="text-center text-slate-500 max-w-3xl mx-auto mb-10">通过公正的考评，我们设立了丰厚的奖励，以表彰表现优异的师徒。</p>
+            <div class="bg-white p-8 rounded-xl shadow-lg"><div class="chart-container relative h-64 md:h-80 w-full max-w-3xl mx-auto"><canvas id="rewardsChart"></canvas></div><div class="mt-6 text-sm text-center text-slate-500"><p><span class="font-bold">注：</span>“园丁日常带训奖励”金额根据徒弟对导师的测评得分，分为500元（优）和300元（良）两个等级。</p></div></div>
+        </section>
+    </main>
+
+    <footer class="bg-white mt-16"><div class="container mx-auto px-6 py-8 text-center text-slate-500"><p>&copy; 2025 太原市民艺术夜校. All Rights Reserved.</p><p class="text-sm mt-2">为太原市民的艺术生活贡献力量。</p></div></footer>
+
+    <script type="module">
+        // --- 1. IMPORTS & CONFIGURATION ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        
+        // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDFCErcTQaOGJWT1Bw-jdYnWurDL-j0mgU",
+  authDomain: "project-4323493989447866258.firebaseapp.com",
+  projectId: "project-4323493989447866258",
+  storageBucket: "project-4323493989447866258.firebasestorage.app",
+  messagingSenderId: "720438802358",
+  appId: "1:720438802358:web:8fe2241e7c53dc325b7317",
+  measurementId: "G-QEEBRSFBQJ"
+};
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+        // --- 2. FIREBASE INITIALIZATION ---
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId; // Use a stable ID from your config
+
+        const EVALUATIONS_COLLECTION = `/artifacts/${appId}/public/data/evaluations`;
+        const FEEDBACKS_COLLECTION = `/artifacts/${appId}/public/data/feedbacks`;
+
+        // --- 3. APPLICATION STATE & DATA ---
+        const formsData = {
+            planning: { title: '企划岗徒弟评估表', criteria: [{ dimension: '思想态度 (20%)', item: '1. 工作主动性与责任心：积极承担任务，对学校“爱民、敬民、惠民、利民”的理念有认同感。', weight: 0.2, score: 0, id: 1 },{ dimension: '', item: '2. 团队协作精神：能与同事有效沟通，主动分享，融入集体。', weight: 0.2, score: 0, id: 2 },{ dimension: '专业能力 (50%)', item: '3. 活动策划能力：能提出有创意的活动点子，并形成逻辑清晰、可落地的初步方案。', weight: 0.5, score: 0, id: 3 },{ dimension: '', item: '4. 活动运营与执行：能细致地跟进活动各环节，推动流程顺利进行，处理突发问题。', weight: 0.5, score: 0, id: 4 },{ dimension: '', item: '5. 策略评估与复盘：能对活动效果进行数据分析，总结经验与不足，提出改进建议。', weight: 0.5, score: 0, id: 5 },{ dimension: '学习与成长 (30%)', item: '6. 任务完成质量：按时、按质完成导师布置的学习与工作任务。', weight: 0.3, score: 0, id: 6 },{ dimension: '', item: '7. 学习主动性：虚心请教，勤于思考，能举一反三，主动寻求提升。', weight: 0.3, score: 0, id: 7 }] },
+            academic: { title: '教务岗徒弟评估表', criteria: [{ dimension: '思想态度 (20%)', item: '1. 服务意识与责任心：工作责任心强，服务热情周到，体现“爱民、敬民、惠民、利民”的理念。', weight: 0.2, score: 0, id: 8 },{ dimension: '', item: '2. 团队协作与执行力：尊重导师，服从工作安排，能融入团队。', weight: 0.2, score: 0, id: 9 },{ dimension: '专业能力 (50%)', item: '3. 校区接待：仪容仪表得体，接待学员/访客专业、耐心，解答问题准确。', weight: 0.5, score: 0, id: 10 },{ dimension: '', item: '4. 教务操作：课程核销、报名、排课等系统操作熟练、准确无误。', weight: 0.5, score: 0, id: 11 },{ dimension: '', item: '5. 沟通协调：与学员电话沟通清晰、与内外部老师对接顺畅、有效。', weight: 0.5, score: 0, id: 12 },{ dimension: '学习与成长 (30%)', item: '6. 任务完成质量：保质保量完成日常教务工作及导师交办事项。', weight: 0.3, score: 0, id: 13 },{ dimension: '', item: '7. 学习主动性：主动学习业务流程，遇到问题能及时请教并记录。', weight: 0.3, score: 0, id: 14 }] },
+            streaming: { title: '直播岗徒弟评估表', criteria: [{ dimension: '思想态度 (20%)', item: '1. 直播热情与敬业度：直播态度认真，富有激情，能传递学校积极正面的形象。', weight: 0.2, score: 0, id: 15 },{ dimension: '', item: '2. 团队协作精神：能与运营、助播等岗位人员良好配合，共同完成直播目标。', weight: 0.2, score: 0, id: 16 },{ dimension: '专业能力 (50%)', item: '3. 镜头表现与互动：镜头感强，语言流畅，仪态自然，能与观众有效互动，调动气氛。', weight: 0.5, score: 0, id: 17 },{ dimension: '', item: '4. 课程与产品讲解：对推广的课程/产品核心卖点熟悉，讲解逻辑清晰，富有吸引力。', weight: 0.5, score: 0, id: 18 },{ dimension: '', item: '5. 直播策划与复盘：能参与直播脚本策划，并在播后对数据进行复盘，提出优化想法。', weight: 0.5, score: 0, id: 19 },{ dimension: '学习与成长 (30%)', item: '6. 任务完成质量：按要求完成直播场次、时长及其他准备工作。', weight: 0.3, score: 0, id: 20 },{ dimension: '', item: '7. 学习主动性：主动观摩优秀主播，虚心接受指导并能快速改进。', weight: 0.3, score: 0, id: 21 }] }
+        };
+        let currentTab = 'planning';
+        const feedbackState = { method: 0, effect: 0, engagement: 0 };
+        let avgScoreChart, feedbackChart;
+
+        // --- 4. FUNCTIONS ---
+
+        function generateFormHTML(tabKey) {
+            const data = formsData[tabKey]; let criteriaHTML = ''; let lastDimension = '';
+            data.criteria.forEach(c => { let dimensionCell = `<td>${c.dimension}</td>`; if (c.dimension === lastDimension) { dimensionCell = `<td class="border-t"></td>`; } else { lastDimension = c.dimension; }
+                criteriaHTML += `<tr class="hover:bg-stone-50">${dimensionCell}<td class="p-3 border-t">${c.item}</td><td class="p-3 border-t"><div class="flex flex-wrap gap-1 justify-center" data-criterion-id="${c.id}">${[...Array(10).keys()].map(i => `<div class="score-item w-8 h-8 flex items-center justify-center rounded-full border border-stone-200">${i + 1}</div>`).join('')}</div></td><td class="p-3 border-t text-center font-bold text-lg text-amber-700" id="score-display-${c.id}">-</td></tr>`;
+            });
+            return `<h3 class="text-2xl font-bold text-center mb-6" id="form-title">${data.title}</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"><div><label class="font-semibold block mb-2">徒弟姓名:</label><input type="text" aria-label="徒弟姓名" class="w-full p-2 border border-stone-300 rounded-md"></div><div><label class="font-semibold block mb-2">导师姓名:</label><input type="text" aria-label="导师姓名" class="w-full p-2 border border-stone-300 rounded-md"></div></div><div class="overflow-x-auto"><table class="w-full text-sm text-left"><thead class="bg-stone-100 text-slate-800"><tr><th class="p-3 w-1/6">评估维度</th><th class="p-3 w-3/6">具体评估项</th><th class="p-3 w-2/6 text-center">评分 (1-10分)</th><th class="p-3 w-1/12 text-center">得分</th></tr></thead><tbody>${criteriaHTML}</tbody><tfoot><tr class="bg-stone-100 font-bold"><td colspan="3" class="p-4 text-right text-xl">总分:</td><td id="total-score" class="p-4 text-center text-2xl text-amber-800">0.0</td></tr></tfoot></table></div><div class="mt-6"><label class="font-semibold block mb-2">导师评语与指导建议:</label><textarea class="w-full p-2 border border-stone-300 rounded-md h-24"></textarea></div>`;
+        }
+
+        function calculateTotalScore() {
+            const data = formsData[currentTab]; let totalScore = 0; const dimensionScores = { '0.2': [], '0.5': [], '0.3': [] };
+            data.criteria.forEach(c => { if(c.score > 0) { dimensionScores[c.weight.toString()].push(c.score); } });
+            for (const weight in dimensionScores) { const scores = dimensionScores[weight]; if (scores.length > 0) { const avg = scores.reduce((a, b) => a + b, 0) / scores.length; totalScore += avg * parseFloat(weight); } }
+            document.getElementById('total-score').textContent = totalScore.toFixed(1);
+        }
+
+        function updateEvaluationForm() {
+            document.getElementById('evaluation-forms').innerHTML = generateFormHTML(currentTab);
+            formsData[currentTab].criteria.forEach(c => c.score = 0);
+            calculateTotalScore();
+        }
+
+        function checkFeedbackFormValidity() {
+            const isComplete = Object.values(feedbackState).every(rating => rating > 0);
+            document.getElementById('submit-feedback-btn').disabled = !isComplete;
+        }
+
+        function resetFeedbackForm() {
+            Object.keys(feedbackState).forEach(key => feedbackState[key] = 0);
+            document.querySelectorAll('.feedback-stars').forEach(c => c.querySelectorAll('.feedback-star').forEach(s => s.classList.remove('selected')));
+            document.getElementById('feedback-comment').value = '';
+            checkFeedbackFormValidity();
+        }
+
+        // --- Chart Functions ---
+        function initRewardsChart() {
+            const ctx = document.getElementById('rewardsChart').getContext('2d');
+            new Chart(ctx, { type: 'bar', data: { labels: ['实习特种兵', '金牌导师', '园丁奖(优)', '园丁奖(良)'], datasets: [{ label: '奖励金额 (元)', data: [500, 1000, 500, 300], backgroundColor: ['rgba(245, 158, 11, 0.6)', 'rgba(217, 119, 6, 0.7)', 'rgba(180, 83, 9, 0.6)', 'rgba(146, 64, 14, 0.5)'], borderColor: ['rgba(245, 158, 11, 1)', 'rgba(217, 119, 6, 1)', 'rgba(180, 83, 9, 1)', 'rgba(146, 64, 14, 1)'], borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, title: { display: true, text: '各项计划奖励金额对比', font: { size: 18, family: "'Noto Sans SC', sans-serif" }, padding: { top: 10, bottom: 20 } }, tooltip: { callbacks: { label: (context) => ` 奖励: ${context.raw} 元` } } }, scales: { x: { beginAtZero: true, title: { display: true, text: '金额 (元)' } } } }
+            });
+        }
+        
+        function initAvgScoreChart() {
+            const ctx = document.getElementById('avgScoreByPosChart').getContext('2d');
+            avgScoreChart = new Chart(ctx, { type: 'bar', data: { labels: ['企划岗', '教务岗', '直播岗'], datasets: [{ label: '平均分', data: [0, 0, 0], backgroundColor: 'rgba(217, 119, 6, 0.6)', borderColor: 'rgba(217, 119, 6, 1)', borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 10 } }, plugins: { legend: { display: false } } }
+            });
+        }
+
+        function initFeedbackChart() {
+            const ctx = document.getElementById('feedbackRadarChart').getContext('2d');
+            feedbackChart = new Chart(ctx, { type: 'radar', data: { labels: ['指导方式', '帮扶效果', '投入度'], datasets: [{ label: '平均评分', data: [0, 0, 0], backgroundColor: 'rgba(217, 119, 6, 0.2)', borderColor: 'rgba(217, 119, 6, 1)', pointBackgroundColor: 'rgba(217, 119, 6, 1)' }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 5, pointLabels: { font: { size: 14 } } } }, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // --- 5. EVENT LISTENERS & DATA HANDLING ---
+        
+        function addEventListeners() {
+            // Tab switching for evaluation form
+            document.querySelectorAll('.tab-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    currentTab = button.dataset.tab;
+                    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    updateEvaluationForm();
+                });
+            });
+
+            // Score selection in evaluation form
+            document.getElementById('evaluation-forms').addEventListener('click', (e) => {
+                if (e.target.classList.contains('score-item')) {
+                    const scoreItem = e.target;
+                    const criterionId = scoreItem.parentElement.dataset.criterionId;
+                    const score = parseInt(scoreItem.textContent);
+                    const criterion = formsData[currentTab].criteria.find(c => c.id == criterionId);
+                    criterion.score = score;
+                    document.getElementById(`score-display-${criterionId}`).textContent = score;
+                    scoreItem.parentElement.querySelectorAll('.score-item').forEach(el => el.classList.remove('selected'));
+                    scoreItem.classList.add('selected');
+                    calculateTotalScore();
+                }
+            });
+
+            // Action buttons
+            document.getElementById('submit-eval-btn').addEventListener('click', async () => {
+                const form = document.getElementById('printable-area');
+                const apprenticeName = form.querySelector('input[aria-label="徒弟姓名"]').value;
+                const mentorName = form.querySelector('input[aria-label="导师姓名"]').value;
+                if (!apprenticeName || !mentorName) { alert('请填写徒弟和导师的姓名。'); return; }
+                const totalScore = parseFloat(document.getElementById('total-score').textContent);
+                const comments = form.querySelector('textarea').value;
+                const position = currentTab;
+                try {
+                    await addDoc(collection(db, EVALUATIONS_COLLECTION), { apprenticeName, mentorName, position, totalScore, comments, createdAt: serverTimestamp() });
+                    alert('评估已成功提交！');
+                    updateEvaluationForm();
+                } catch (e) { console.error("Error adding document: ", e); alert('提交失败，请检查网络连接或联系管理员。'); }
+            });
+            document.getElementById('print-btn').addEventListener('click', () => window.print());
+
+            // Feedback form listeners
+            document.querySelectorAll('.feedback-stars').forEach(container => {
+                container.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('feedback-star')) {
+                        const ratingId = container.dataset.ratingId;
+                        const value = parseInt(e.target.dataset.value);
+                        feedbackState[ratingId] = value;
+                        container.querySelectorAll('.feedback-star').forEach(star => {
+                            star.classList.toggle('selected', parseInt(star.dataset.value) <= value);
+                        });
+                        checkFeedbackFormValidity();
+                    }
+                });
+            });
+            document.getElementById('submit-feedback-btn').addEventListener('click', async () => {
+                const comment = document.getElementById('feedback-comment').value;
+                try {
+                    await addDoc(collection(db, FEEDBACKS_COLLECTION), { ratings: feedbackState, comment, createdAt: serverTimestamp() });
+                    document.getElementById('feedback-form-container').classList.add('hidden');
+                    document.getElementById('feedback-success-msg').classList.remove('hidden');
+                    setTimeout(() => {
+                        document.getElementById('feedback-form-container').classList.remove('hidden');
+                        document.getElementById('feedback-success-msg').classList.add('hidden');
+                        resetFeedbackForm();
+                    }, 3000);
+                } catch (e) { console.error("Error adding document: ", e); alert('提交失败，请检查网络连接或联系管理员。'); }
+            });
+
+            // Accordion
+            document.querySelectorAll('.accordion-header').forEach(header => { header.addEventListener('click', () => {
+                const content = header.nextElementSibling; const icon = header.querySelector('span');
+                if (content.style.maxHeight) { content.style.maxHeight = null; icon.style.transform = 'rotate(0deg)'; } 
+                else { const parent = header.closest('div[id^="accordion-"]'); parent.querySelectorAll('.accordion-content').forEach(c => c.style.maxHeight = null); parent.querySelectorAll('.accordion-header span').forEach(i => i.style.transform = 'rotate(0deg)'); content.style.maxHeight = content.scrollHeight + "px"; icon.style.transform = 'rotate(180deg)'; }
+            }); });
+
+            // Mobile navigation
+            document.getElementById('mobile-nav').addEventListener('change', function() { document.querySelector(this.value).scrollIntoView(); });
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('.nav-link');
+            const observer = new IntersectionObserver((entries) => { entries.forEach(entry => { if (entry.isIntersecting) { navLinks.forEach(link => { link.classList.toggle('active', link.getAttribute('href').substring(1) === entry.target.id); }); document.getElementById('mobile-nav').value = `#${entry.target.id}`; } }); }, { rootMargin: "-50% 0px -50% 0px" });
+            sections.forEach(section => observer.observe(section));
+        }
+
+        function listenForStatistics() {
+            const evalCollectionRef = collection(db, EVALUATIONS_COLLECTION);
+            onSnapshot(evalCollectionRef, (snapshot) => {
+                const evaluations = snapshot.docs.map(doc => doc.data());
+                document.getElementById('eval-total-count').textContent = evaluations.length;
+                if (evaluations.length > 0) {
+                    document.getElementById('avgScoreByPosChart-placeholder').style.display = 'none';
+                    if (!avgScoreChart) initAvgScoreChart();
+                    const scoresByPos = { planning: [], academic: [], streaming: [] };
+                    evaluations.forEach(e => { if (scoresByPos[e.position]) { scoresByPos[e.position].push(e.totalScore); } });
+                    const avgScores = Object.keys(scoresByPos).map(pos => { const scores = scoresByPos[pos]; return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0; });
+                    avgScoreChart.data.datasets[0].data = avgScores;
+                    avgScoreChart.update();
+                } else { document.getElementById('avgScoreByPosChart-placeholder').style.display = 'flex'; }
+            });
+
+            const feedbackCollectionRef = collection(db, FEEDBACKS_COLLECTION);
+            onSnapshot(feedbackCollectionRef, (snapshot) => {
+                const feedbacks = snapshot.docs.map(doc => doc.data());
+                document.getElementById('feedback-total-count').textContent = feedbacks.length;
+                if (feedbacks.length > 0) {
+                    document.getElementById('feedbackRadarChart-placeholder').style.display = 'none';
+                    if (!feedbackChart) initFeedbackChart();
+                    const totals = { method: 0, effect: 0, engagement: 0 };
+                    feedbacks.forEach(f => { totals.method += f.ratings.method; totals.effect += f.ratings.effect; totals.engagement += f.ratings.engagement; });
+                    const avgRatings = [ totals.method / feedbacks.length, totals.effect / feedbacks.length, totals.engagement / feedbacks.length ];
+                    feedbackChart.data.datasets[0].data = avgRatings;
+                    feedbackChart.update();
+                } else { document.getElementById('feedbackRadarChart-placeholder').style.display = 'flex'; }
+            });
+        }
+        
+        // --- 6. MAIN EXECUTION ---
+        async function main() {
+            try {
+                await signInAnonymously(auth);
+                console.log("Signed in anonymously.");
+                
+                // Setup UI and listeners after sign-in
+                addEventListeners();
+                updateEvaluationForm();
+                checkFeedbackFormValidity();
+                
+                // Start listening for real-time data
+                listenForStatistics();
+
+                // Init static chart
+                initRewardsChart();
+            } catch (error) {
+                console.error("Initialization failed:", error);
+                alert("应用初始化失败，请检查您的Firebase配置和网络连接。");
+            }
+        }
+
+        main();
+
+    </script>
+</body>
+</html>
