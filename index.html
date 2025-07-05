@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Chosen Palette: Warm Neutrals (Stone, Slate, Amber) -->
-    <!-- Application Structure Plan: 升级为包含持久化存储的仪表板。结构扩展为六大板块：1.概览, 2.详情, 3.导师评估(数据输入), 4.徒弟反馈(数据输入), 5.在线统计(数据显示), 6.激励机制。核心是引入Firestore，将评估和反馈表单从计算工具转变为数据收集入口，在线统计板块则成为实时的数据可视化中心，实现了从静态到动态、从个人使用到团队协作的转变。 -->
+    <!-- Application Structure Plan: 升级为包含持久化存储的仪表板。结构扩展为七大板块：1.概览, 2.详情, 3.导师评估(数据输入), 4.徒弟反馈(数据输入), 5.在线统计(数据显示), 6.激励机制, 7.数据管理入口。核心是引入Firestore，将评估和反馈表单从计算工具转变为数据收集入口，在线统计板块则成为实时的数据可视化中心，实现了从静态到动态、从个人使用到团队协作的转变。 -->
     <!-- Visualization & Content Choices: 概览->卡片; 详情->手风琴; 评估->交互表单+JS->Firestore写入; 反馈->星级+JS->Firestore写入; 统计->指标卡+条形图(岗位对比)+雷达图(导师效果)+JS->Firestore读取与聚合; 激励->静态条形图。此选择确保了数据流的完整闭环：收集->存储->分析->展示。确认未使用SVG及Mermaid JS。 -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
@@ -25,12 +25,19 @@
         .feedback-star:hover { transform: scale(1.2); }
         .feedback-stars:hover .feedback-star, .feedback-star.selected { color: #f59e0b; }
         .feedback-stars .feedback-star:hover ~ .feedback-star { color: #d1d5db; }
-        .chart-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #9ca3af; }
+        .chart-placeholder { display: flex; flex-direction:column; align-items: center; justify-content: center; height: 100%; color: #9ca3af; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #d97706; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Custom Modal */
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .modal-backdrop.visible { opacity: 1; visibility: visible; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; max-width: 90%; width: 400px; transform: scale(0.95); transition: transform 0.3s; }
+        .modal-backdrop.visible .modal-content { transform: scale(1); }
         @media print {
             body * { visibility: hidden; }
             #printable-area, #printable-area * { visibility: visible; }
             #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
-            header, #actions-bar, #apprentice-feedback, #statistics, #rewards, footer { display: none; }
+            header, #actions-bar, #apprentice-feedback, #statistics, #rewards, footer, #data-management { display: none; }
         }
     </style>
 </head>
@@ -88,7 +95,7 @@
             <p class="text-center text-slate-500 max-w-3xl mx-auto mb-10">请导师选择徒弟对应的岗位，填写信息并在线打分。点击“提交评估”后数据将被记录用于统计。</p>
             <div class="flex justify-center mb-8 space-x-2 md:space-x-4"><button class="tab-btn active px-4 py-2 md:px-6 md:py-3 rounded-lg font-semibold bg-white text-slate-600" data-tab="planning">企划岗</button><button class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-lg font-semibold bg-white text-slate-600" data-tab="academic">教务岗</button><button class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-lg font-semibold bg-white text-slate-600" data-tab="streaming">直播岗</button></div>
             <div id="printable-area" class="bg-white p-6 sm:p-8 rounded-xl shadow-lg"><div id="evaluation-forms"></div></div>
-            <div id="actions-bar" class="mt-8 flex flex-wrap justify-center gap-4"><button id="submit-eval-btn" class="px-8 py-3 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors">提交评估</button><button id="print-btn" class="px-8 py-3 bg-slate-500 text-white font-bold rounded-lg hover:bg-slate-600 transition-colors">打印表单</button></div>
+            <div id="actions-bar" class="mt-8 flex flex-wrap justify-center gap-4"><button id="submit-eval-btn" class="px-8 py-3 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors">提交评估</button><button id="clear-eval-btn" class="px-8 py-3 bg-slate-500 text-white font-bold rounded-lg hover:bg-slate-600 transition-colors">清空表单</button><button id="print-btn" class="px-8 py-3 bg-slate-500 text-white font-bold rounded-lg hover:bg-slate-600 transition-colors">打印表单</button></div>
         </section>
         
         <!-- Section 4: Apprentice Feedback -->
@@ -107,8 +114,8 @@
                 <div class="bg-white p-6 rounded-xl shadow-lg text-center"><h3 class="text-lg font-semibold text-slate-500">反馈总数</h3><p id="feedback-total-count" class="text-5xl font-bold text-amber-600">0</p></div>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-xl font-bold text-center mb-4">各岗位平均分</h3><div class="chart-container relative h-80 w-full max-w-2xl mx-auto"><canvas id="avgScoreByPosChart"></canvas><div id="avgScoreByPosChart-placeholder" class="chart-placeholder">暂无数据</div></div></div>
-                <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-xl font-bold text-center mb-4">导师带教效果分析</h3><div class="chart-container relative h-80 w-full max-w-md mx-auto"><canvas id="feedbackRadarChart"></canvas><div id="feedbackRadarChart-placeholder" class="chart-placeholder">暂无数据</div></div></div>
+                <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-xl font-bold text-center mb-4">各岗位平均分</h3><div class="chart-container relative h-80 w-full max-w-2xl mx-auto"><canvas id="avgScoreByPosChart"></canvas><div id="avgScoreByPosChart-placeholder" class="chart-placeholder"><div class="loader"></div><span>等待数据...</span></div></div></div>
+                <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-xl font-bold text-center mb-4">导师带教效果分析</h3><div class="chart-container relative h-80 w-full max-w-md mx-auto"><canvas id="feedbackRadarChart"></canvas><div id="feedbackRadarChart-placeholder" class="chart-placeholder"><div class="loader"></div><span>等待数据...</span></div></div></div>
             </div>
         </section>
 
@@ -118,9 +125,34 @@
             <p class="text-center text-slate-500 max-w-3xl mx-auto mb-10">通过公正的考评，我们设立了丰厚的奖励，以表彰表现优异的师徒。</p>
             <div class="bg-white p-8 rounded-xl shadow-lg"><div class="chart-container relative h-64 md:h-80 w-full max-w-3xl mx-auto"><canvas id="rewardsChart"></canvas></div><div class="mt-6 text-sm text-center text-slate-500"><p><span class="font-bold">注：</span>“园丁日常带训奖励”金额根据徒弟对导师的测评得分，分为500元（优）和300元（良）两个等级。</p></div></div>
         </section>
+
+        <!-- Section 7: Data Management -->
+        <section id="data-management" class="mb-12 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center mb-2">数据管理</h2>
+            <p class="text-center text-slate-500 max-w-3xl mx-auto mb-10">所有提交的数据都会被安全地存储在云端数据库中，您可以随时登录后台查看。</p>
+            <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg text-center">
+                <h3 class="text-xl font-bold mb-4">如何查看数据？</h3>
+                <p class="text-slate-600 mb-6">点击下方按钮，登录您的Firebase账户，即可在 **Firestore Database** 中找到名为 `evaluations` 和 `feedbacks` 的数据集合，所有填报记录都在其中。</p>
+                <a href="https://console.firebase.google.com/" target="_blank" class="inline-block px-8 py-3 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors">
+                    前往Firebase后台
+                </a>
+            </div>
+        </section>
     </main>
 
     <footer class="bg-white mt-16"><div class="container mx-auto px-6 py-8 text-center text-slate-500"><p>&copy; 2025 太原市民艺术夜校. All Rights Reserved.</p><p class="text-sm mt-2">为太原市民的艺术生活贡献力量。</p></div></footer>
+
+    <!-- Custom Modal for Confirmation -->
+    <div id="confirmation-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-xl font-bold mb-4">确认操作</h3>
+            <p id="modal-message" class="text-slate-600 mb-6">您确定要提交吗？</p>
+            <div class="flex justify-center gap-4">
+                <button id="modal-cancel-btn" class="px-6 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300">取消</button>
+                <button id="modal-confirm-btn" class="px-6 py-2 bg-amber-600 text-white font-semibold rounded-lg hover:bg-amber-700">确认</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         // --- 1. IMPORTS & CONFIGURATION ---
@@ -128,32 +160,28 @@
         import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         
-        // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyDFCErcTQaOGJWT1Bw-jdYnWurDL-j0mgU",
-  authDomain: "project-4323493989447866258.firebaseapp.com",
-  projectId: "project-4323493989447866258",
-  storageBucket: "project-4323493989447866258.firebasestorage.app",
-  messagingSenderId: "720438802358",
-  appId: "1:720438802358:web:8fe2241e7c53dc325b7317",
-  measurementId: "G-QEEBRSFBQJ"
-};
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+        // This configuration has been replaced with the one you provided.
+        const firebaseConfig = {
+            apiKey: "AIzaSyDFCErcTQaOGJWT1Bw-jdYnWurDL-j0mgU",
+            authDomain: "project-4323493989447866258.firebaseapp.com",
+            projectId: "project-4323493989447866258",
+            storageBucket: "project-4323493989447866258.appspot.com",
+            messagingSenderId: "720438802358",
+            appId: "1:720438802358:web:8fe2241e7c53dc325b7317",
+            measurementId: "G-QEEBRSFBQJ"
+        };
 
         // --- 2. FIREBASE INITIALIZATION ---
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const appId = firebaseConfig.projectId; // Use a stable ID from your config
+        let db, auth, appId;
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            appId = firebaseConfig.projectId;
+        } catch (e) {
+            console.error("Firebase initialization error:", e);
+            alert("Firebase 配置无效，请检查您粘贴的配置信息是否正确。");
+        }
 
         const EVALUATIONS_COLLECTION = `/artifacts/${appId}/public/data/evaluations`;
         const FEEDBACKS_COLLECTION = `/artifacts/${appId}/public/data/feedbacks`;
@@ -202,6 +230,35 @@ const analytics = getAnalytics(app);
             document.getElementById('feedback-comment').value = '';
             checkFeedbackFormValidity();
         }
+        
+        function showModal(title, message, onConfirm) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            const modal = document.getElementById('confirmation-modal');
+            modal.classList.add('visible');
+
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+
+            const confirmHandler = () => {
+                onConfirm();
+                hideModal();
+                confirmBtn.removeEventListener('click', confirmHandler);
+                cancelBtn.removeEventListener('click', cancelHandler);
+            };
+            const cancelHandler = () => {
+                hideModal();
+                confirmBtn.removeEventListener('click', confirmHandler);
+                cancelBtn.removeEventListener('click', cancelHandler);
+            };
+            
+            confirmBtn.addEventListener('click', confirmHandler);
+            cancelBtn.addEventListener('click', cancelHandler);
+        }
+
+        function hideModal() {
+            document.getElementById('confirmation-modal').classList.remove('visible');
+        }
 
         // --- Chart Functions ---
         function initRewardsChart() {
@@ -228,7 +285,6 @@ const analytics = getAnalytics(app);
         // --- 5. EVENT LISTENERS & DATA HANDLING ---
         
         function addEventListeners() {
-            // Tab switching for evaluation form
             document.querySelectorAll('.tab-btn').forEach(button => {
                 button.addEventListener('click', () => {
                     currentTab = button.dataset.tab;
@@ -238,7 +294,6 @@ const analytics = getAnalytics(app);
                 });
             });
 
-            // Score selection in evaluation form
             document.getElementById('evaluation-forms').addEventListener('click', (e) => {
                 if (e.target.classList.contains('score-item')) {
                     const scoreItem = e.target;
@@ -253,24 +308,26 @@ const analytics = getAnalytics(app);
                 }
             });
 
-            // Action buttons
-            document.getElementById('submit-eval-btn').addEventListener('click', async () => {
+            document.getElementById('submit-eval-btn').addEventListener('click', () => {
                 const form = document.getElementById('printable-area');
                 const apprenticeName = form.querySelector('input[aria-label="徒弟姓名"]').value;
                 const mentorName = form.querySelector('input[aria-label="导师姓名"]').value;
                 if (!apprenticeName || !mentorName) { alert('请填写徒弟和导师的姓名。'); return; }
-                const totalScore = parseFloat(document.getElementById('total-score').textContent);
-                const comments = form.querySelector('textarea').value;
-                const position = currentTab;
-                try {
-                    await addDoc(collection(db, EVALUATIONS_COLLECTION), { apprenticeName, mentorName, position, totalScore, comments, createdAt: serverTimestamp() });
-                    alert('评估已成功提交！');
-                    updateEvaluationForm();
-                } catch (e) { console.error("Error adding document: ", e); alert('提交失败，请检查网络连接或联系管理员。'); }
+                
+                showModal('确认提交评估', '您确定要提交这份评估吗？提交后将计入统计。', async () => {
+                    const totalScore = parseFloat(document.getElementById('total-score').textContent);
+                    const comments = form.querySelector('textarea').value;
+                    const position = currentTab;
+                    try {
+                        await addDoc(collection(db, EVALUATIONS_COLLECTION), { apprenticeName, mentorName, position, totalScore, comments, createdAt: serverTimestamp() });
+                        alert('评估已成功提交！');
+                        updateEvaluationForm();
+                    } catch (e) { console.error("Error adding document: ", e); alert('提交失败，请检查网络连接或联系管理员。'); }
+                });
             });
+            document.getElementById('clear-eval-btn').addEventListener('click', () => updateEvaluationForm());
             document.getElementById('print-btn').addEventListener('click', () => window.print());
 
-            // Feedback form listeners
             document.querySelectorAll('.feedback-stars').forEach(container => {
                 container.addEventListener('click', (e) => {
                     if (e.target.classList.contains('feedback-star')) {
@@ -284,28 +341,28 @@ const analytics = getAnalytics(app);
                     }
                 });
             });
-            document.getElementById('submit-feedback-btn').addEventListener('click', async () => {
-                const comment = document.getElementById('feedback-comment').value;
-                try {
-                    await addDoc(collection(db, FEEDBACKS_COLLECTION), { ratings: feedbackState, comment, createdAt: serverTimestamp() });
-                    document.getElementById('feedback-form-container').classList.add('hidden');
-                    document.getElementById('feedback-success-msg').classList.remove('hidden');
-                    setTimeout(() => {
-                        document.getElementById('feedback-form-container').classList.remove('hidden');
-                        document.getElementById('feedback-success-msg').classList.add('hidden');
-                        resetFeedbackForm();
-                    }, 3000);
-                } catch (e) { console.error("Error adding document: ", e); alert('提交失败，请检查网络连接或联系管理员。'); }
+            document.getElementById('submit-feedback-btn').addEventListener('click', () => {
+                showModal('确认提交反馈', '您确定要提交这份匿名反馈吗？', async () => {
+                    const comment = document.getElementById('feedback-comment').value;
+                    try {
+                        await addDoc(collection(db, FEEDBACKS_COLLECTION), { ratings: feedbackState, comment, createdAt: serverTimestamp() });
+                        document.getElementById('feedback-form-container').classList.add('hidden');
+                        document.getElementById('feedback-success-msg').classList.remove('hidden');
+                        setTimeout(() => {
+                            document.getElementById('feedback-form-container').classList.remove('hidden');
+                            document.getElementById('feedback-success-msg').classList.add('hidden');
+                            resetFeedbackForm();
+                        }, 3000);
+                    } catch (e) { console.error("Error adding document: ", e); alert('提交失败，请检查网络连接或联系管理员。'); }
+                });
             });
 
-            // Accordion
             document.querySelectorAll('.accordion-header').forEach(header => { header.addEventListener('click', () => {
                 const content = header.nextElementSibling; const icon = header.querySelector('span');
                 if (content.style.maxHeight) { content.style.maxHeight = null; icon.style.transform = 'rotate(0deg)'; } 
                 else { const parent = header.closest('div[id^="accordion-"]'); parent.querySelectorAll('.accordion-content').forEach(c => c.style.maxHeight = null); parent.querySelectorAll('.accordion-header span').forEach(i => i.style.transform = 'rotate(0deg)'); content.style.maxHeight = content.scrollHeight + "px"; icon.style.transform = 'rotate(180deg)'; }
             }); });
 
-            // Mobile navigation
             document.getElementById('mobile-nav').addEventListener('change', function() { document.querySelector(this.value).scrollIntoView(); });
             const sections = document.querySelectorAll('section');
             const navLinks = document.querySelectorAll('.nav-link');
@@ -318,48 +375,45 @@ const analytics = getAnalytics(app);
             onSnapshot(evalCollectionRef, (snapshot) => {
                 const evaluations = snapshot.docs.map(doc => doc.data());
                 document.getElementById('eval-total-count').textContent = evaluations.length;
+                const placeholder = document.getElementById('avgScoreByPosChart-placeholder');
                 if (evaluations.length > 0) {
-                    document.getElementById('avgScoreByPosChart-placeholder').style.display = 'none';
+                    placeholder.style.display = 'none';
                     if (!avgScoreChart) initAvgScoreChart();
                     const scoresByPos = { planning: [], academic: [], streaming: [] };
                     evaluations.forEach(e => { if (scoresByPos[e.position]) { scoresByPos[e.position].push(e.totalScore); } });
                     const avgScores = Object.keys(scoresByPos).map(pos => { const scores = scoresByPos[pos]; return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0; });
                     avgScoreChart.data.datasets[0].data = avgScores;
                     avgScoreChart.update();
-                } else { document.getElementById('avgScoreByPosChart-placeholder').style.display = 'flex'; }
-            });
+                } else { placeholder.style.display = 'flex'; placeholder.innerHTML = `<span>暂无评估数据</span>`; }
+            }, (error) => { console.error("Error listening to evaluations:", error); });
 
             const feedbackCollectionRef = collection(db, FEEDBACKS_COLLECTION);
             onSnapshot(feedbackCollectionRef, (snapshot) => {
                 const feedbacks = snapshot.docs.map(doc => doc.data());
                 document.getElementById('feedback-total-count').textContent = feedbacks.length;
+                const placeholder = document.getElementById('feedbackRadarChart-placeholder');
                 if (feedbacks.length > 0) {
-                    document.getElementById('feedbackRadarChart-placeholder').style.display = 'none';
+                    placeholder.style.display = 'none';
                     if (!feedbackChart) initFeedbackChart();
                     const totals = { method: 0, effect: 0, engagement: 0 };
                     feedbacks.forEach(f => { totals.method += f.ratings.method; totals.effect += f.ratings.effect; totals.engagement += f.ratings.engagement; });
                     const avgRatings = [ totals.method / feedbacks.length, totals.effect / feedbacks.length, totals.engagement / feedbacks.length ];
                     feedbackChart.data.datasets[0].data = avgRatings;
                     feedbackChart.update();
-                } else { document.getElementById('feedbackRadarChart-placeholder').style.display = 'flex'; }
-            });
+                } else { placeholder.style.display = 'flex'; placeholder.innerHTML = `<span>暂无反馈数据</span>`; }
+            }, (error) => { console.error("Error listening to feedbacks:", error); });
         }
         
         // --- 6. MAIN EXECUTION ---
         async function main() {
+            if (!db) return; // Stop if Firebase didn't initialize
             try {
                 await signInAnonymously(auth);
                 console.log("Signed in anonymously.");
-                
-                // Setup UI and listeners after sign-in
                 addEventListeners();
                 updateEvaluationForm();
                 checkFeedbackFormValidity();
-                
-                // Start listening for real-time data
                 listenForStatistics();
-
-                // Init static chart
                 initRewardsChart();
             } catch (error) {
                 console.error("Initialization failed:", error);
